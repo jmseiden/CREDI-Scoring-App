@@ -1,0 +1,13 @@
+name: Scoring_App
+title: Scoring_App
+username:
+account: credi
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2341827
+bundleId: 3561924
+url: https://credi.shinyapps.io/Scoring_App/
+when: 1598490643.81367
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: credi_scoring_uploader2.R
