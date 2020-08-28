@@ -2,6 +2,7 @@
 library(jmscredi)
 library(tidyverse)
 library(ggplot2)
+library(shinybusy)
 
   ui <- fluidPage(
     sidebarLayout(
@@ -31,14 +32,25 @@ library(ggplot2)
       ),
       #The main panel will simply display the processed output
       mainPanel(
+
+        add_busy_bar(timeout = 1000, color = "#112446", centered = FALSE,
+                     height = "8px"),
+
+        conditionalPanel(
+          condition = "!output.run",
+          mainPanel(
+                    tags$body("Please upload a CSV. Ensure that your CSV has a unique ID variable, an AGE variable, and CREDI variables. Please see the"),
+                    tags$a(href="https://cdn1.sph.harvard.edu/wp-content/uploads/sites/2435/2016/05/CREDI-Scoring-Manual-8-Jun-2018.pdf",
+                           "CREDI scoring guide"),
+                    tags$body("for more information."),
+          )
+        ),
+
         conditionalPanel(
           condition = "output.success",
           plotOutput("contents")
           ),
-        conditionalPanel(
-          condition = "output.uploadfailure",
-          mainPanel("Error uploading CSV. Please ensure file format is CSV.")
-        ),
+
         conditionalPanel(
           condition = "output.failure",
           mainPanel("Error processing data. Please see log for details")
@@ -62,14 +74,18 @@ library(ggplot2)
 
     })
 
-    #Run the CREDI code and retrieve the log
-    log <- reactive({
-        jmscredi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse)$log
+    ###Process the data and run the CREDI code, returning a list with the log and the scores (if successful)
+    processed <- reactive({
+        dat <- jmscredi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse)
+        list(scores = dat$scores, log = dat$log)
     })
 
-    #Run the CREDI code and retrieve the scores
+    log <- reactive({
+      processed()$log
+    })
+
     scores <- reactive({
-      jmscredi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse)$scores
+      processed()$scores
     })
 
     #Check success of scoring
@@ -91,15 +107,19 @@ library(ggplot2)
     #Write the contents to a processing program to show when it's running
     output$contents <- renderPlot({
       scores() %>%
+        mutate(age_band = ifelse(AGE < 6, "0-5",
+                                 ifelse(AGE < 11, "6-11",
+                                        ifelse(AGE < 17, "12-17",
+                                               ifelse(AGE < 24, "18-24",
+                                                      ifelse(AGE < 29, "25-29",
+                                                             ifelse(AGE < 36, "30-36", "Overage"))))))) %>%
         pivot_longer(cols = c(OVERALL, SEM, MOT, LANG, COG),
                      values_to = "Score",
                      names_to = "Domain") %>%
-        group_by(Domain) %>%
-        summarise(Score = mean(Score)) %>%
-        ggplot(aes(x = factor(Domain), y=Score, fill = Domain)) +
-        geom_bar(stat="identity") +
-        geom_text(aes(label=round(Score,2)), vjust = 1.5) +
-        theme(legend.position='none') +
+        group_by(Domain, age_band) %>%
+        summarise(Score = mean(Score, na.rm=TRUE), .groups = "keep") %>%
+        ggplot(aes(x = factor(Domain), y=Score, fill = age_band)) +
+        geom_bar(stat="identity", position="dodge") +
         xlab("CREDI domain score averages")
     })
 
@@ -111,17 +131,39 @@ library(ggplot2)
       }
     )
 
-
-    #Write a downloadable csv of processed dataset
+    #Write out the log in a nice .txt using code copied from CREDI package.
     output$log <- downloadHandler(
       filename = "log.txt",
       content = function(file) {
-        write.table(log(), file)
+        sink(file, append = TRUE)
+        for (l in 1:length(log())){
+          if (is.character(log()[[l]])){
+            writeLines(log()[[l]])
+          } else {
+            print(log()[[l]])
+          }
+        }
+        sink()
       }
     )
-
   }
+#
+#   #Write out the log in a nice .txt using code copied from CREDI package.
+#   output$errorlog <- reactive{(
+#     errorlog <- function(file) {
+#       sink(file, append = TRUE)
+#       for (l in 1:length(log())){
+#         if (is.character(log()[[l]])){
+#           writeLines(log()[[l]])
+#         } else {
+#           print(log()[[l]])
+#         }
+#       }
+#       sink()
+#       return(errorlog)
+#     }
+#   )
+#   }
+
 
 shinyApp(ui, server)
-
-
