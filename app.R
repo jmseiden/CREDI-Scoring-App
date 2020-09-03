@@ -47,8 +47,6 @@ library(shinyalert)
       #The main panel will simply display the processed output
       mainPanel(
         
-        textOutput("folder"),
-
         add_busy_bar(timeout = 1000, color = "#112446", centered = FALSE,
                      height = "8px"),
 
@@ -65,7 +63,8 @@ library(shinyalert)
 
         conditionalPanel(
           condition = "output.success",
-          plotOutput("contents")
+          plotOutput("avgscores"),
+          plotOutput("zscores")
           ),
 
         conditionalPanel(
@@ -78,7 +77,7 @@ library(shinyalert)
   )
 
 
-  server <- function(input, output) {
+  server <- function(input, output, session) {
     
     #Create a dictionary for CREDI variable names
     load("environment.rda")
@@ -109,8 +108,6 @@ library(shinyalert)
     #   }
     # })
     
-    
-    
     preprocessed <- reactive({
         #ShowDon't throw an error if nothing is uploaded yet.
         validate(
@@ -122,12 +119,6 @@ library(shinyalert)
         preprocessed <- readr::read_csv(inFile$datapath)
     })
 
-    
-    output$folder <- renderText({
-      inFile <- input$file1
-      inFile$datapath
-    })
-    
     ###Process the data and run the CREDI code, returning a list with the log and the scores (if successful)
     processed <- reactive({
         dat <- jmscredi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse)
@@ -159,7 +150,7 @@ library(shinyalert)
     outputOptions(output, "failure", suspendWhenHidden = FALSE)
 
     #Write the contents to a processing program to show when it's running
-    output$contents <- renderPlot({
+    output$avgscores <- renderPlot({
       scores() %>%
         mutate(age_band = ifelse(AGE < 6, "0-5",
                                  ifelse(AGE < 11, "6-11",
@@ -177,6 +168,16 @@ library(shinyalert)
         xlab("CREDI domain score averages")
     })
 
+    output$zscores <- renderPlot({
+      scores() %>%
+        pivot_longer(cols = c(z_SEM, z_MOT, z_LANG, z_COG),
+                     values_to = "Scores",
+                     names_to = "Domain") %>%
+        group_by(Domain) %>%
+        ggplot(aes(x = Scores, group = Domain, fill = Domain, alpha = .5)) +
+        geom_density()
+    })    
+    
     #Write a downloadable csv of processed dataset
     output$scores <- downloadHandler(
       filename = "Scored_CREDI_Data.csv",
@@ -208,24 +209,12 @@ library(shinyalert)
         sink()
       }
     )
-  }
-#
-#   #Write out the log in a nice .txt using code copied from CREDI package.
-#   output$errorlog <- reactive{(
-#     errorlog <- function(file) {
-#       sink(file, append = TRUE)
-#       for (l in 1:length(log())){
-#         if (is.character(log()[[l]])){
-#           writeLines(log()[[l]])
-#         } else {
-#           print(log()[[l]])
-#         }
-#       }
-#       sink()
-#       return(errorlog)
-#     }
-#   )
-#   }
 
+# Delete the temporary directory when the session ends (I am not sure if this is necessary)
+  session$onSessionEnded(
+    function(){ 
+      unlink(tempdir(), recursive = TRUE)
+      })
+  }  
 
 shinyApp(ui, server)
