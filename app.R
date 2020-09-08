@@ -11,7 +11,8 @@ library(shinyalert)
 
     titlePanel(
         title=div(img(src="credi_logo.jpg", width = "300px"),
-                  "Scoring Application")
+                  "Scoring Application"),
+        windowTitle= "CREDI Scoring App"
       ),
 
     sidebarLayout(
@@ -211,10 +212,10 @@ library(shinyalert)
     )
 
 # Delete the temporary directory when the session ends (I am not sure if this is necessary)
-  session$onSessionEnded(
-    function(){ 
-      unlink(tempdir(), recursive = TRUE)
-      })
+  # session$onSessionEnded(
+  #   function(){ 
+  #     unlink(tempdir(), recursive = TRUE)
+  #     })
   }  
 
 shinyApp(ui, server)
