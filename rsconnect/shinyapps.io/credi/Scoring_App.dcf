@@ -5,8 +5,9 @@ account: credi
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2341827
-bundleId: 3590363
+bundleId: 3691910
 url: https://credi.shinyapps.io/Scoring_App/
-when: 1599165891.17868
+when: 1601566176.92613
 asMultiple: FALSE
 asStatic: FALSE
+ignoredFiles: sysdata.rda

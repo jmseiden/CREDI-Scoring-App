@@ -1,4 +1,9 @@
 # setwd("C:/Users/Jonat/OneDrive - Harvard University/Documents/Git Hub/CREDI Scoring App")
+
+# devtools::install_github("jmseiden/jms_credi")
+# installr::uninstall.packages("jmscredi")
+# devtools::install("C:/Users/Jonat/OneDrive - Harvard University/Documents/Git Hub/jms_credi")
+
 library(jmscredi)
 library(tidyverse)
 library(ggplot2)
@@ -25,9 +30,14 @@ library(shinyalert)
           tags$style(type="text/css", ".well {width: 300px; }")
         ),
         #Reverse scoring option
-        checkboxInput("reverse", "My data is NOT reverse-coded", TRUE),
-        checkboxInput("itemlevel", "I want to preserve item-level data", FALSE),
-
+        checkboxInput(inputId = "reverse", 
+                      label = HTML(paste0("My data is ", "<b>","not","</b>", " reverse coded.", "<i>"," Selecting this option will have the program automatically reverse-code your data.","</i>")),
+                      value = TRUE),
+        
+        checkboxInput(inputId = "itemlevel", 
+                      label = HTML(paste0("I want to preserve item-level data.", "<i>", " Select this option if you want to keep the data from each CREDI question. By default, the program will automatically discard item-level responses in the scored data.","</i>")),
+                      value = FALSE),
+    
         #File upload box
         fileInput("file1", "Choose CSV File",
                   accept = ".csv"
@@ -83,8 +93,6 @@ library(shinyalert)
     #Create a dictionary for CREDI variable names
     load("environment.rda")
     
-    vecQnames <- c(mest_df$Item, mest_df$CREDI_code, mest_df$CREDI_code_Apr17)
-
     #Confirm user will not upload PII
       shinyalert(
         title = "Usage Agreement",
@@ -158,13 +166,14 @@ library(shinyalert)
                                         ifelse(AGE < 17, "12-17",
                                                ifelse(AGE < 24, "18-24",
                                                       ifelse(AGE < 29, "25-29",
-                                                             ifelse(AGE < 36, "30-36", "Overage"))))))) %>%
-        pivot_longer(cols = c(OVERALL, SEM, MOT, LANG, COG),
+                                                             ifelse(AGE <= 36, "30-36", "Overage")))))),
+               age_band = ordered(age_band, levels = c("0-5", "6-11", "12-17","18-24","25-29", "30-36"))) %>%
+        pivot_longer(cols = c(OVERALL, SEM, MOT, LANG, COG, SF),
                      values_to = "Score",
                      names_to = "Domain") %>%
         group_by(Domain, age_band) %>%
         summarise(Score = mean(Score, na.rm=TRUE), .groups = "keep") %>%
-        ggplot(aes(x = factor(Domain), y=Score, fill = age_band)) +
+        ggplot(aes(x = Domain, y=Score, fill = age_band)) +
         geom_bar(stat="identity", position="dodge") +
         xlab("CREDI domain score averages")
     })
@@ -175,8 +184,8 @@ library(shinyalert)
                      values_to = "Scores",
                      names_to = "Domain") %>%
         group_by(Domain) %>%
-        ggplot(aes(x = Scores, group = Domain, fill = Domain, alpha = .5)) +
-        geom_density()
+        ggplot(aes(x = Scores, group = Domain, fill = Domain)) +
+        geom_density(alpha = .5)
     })    
     
     #Write a downloadable csv of processed dataset
@@ -189,7 +198,7 @@ library(shinyalert)
         }
         #Otherwise we remove the item-level data
         else {
-          scores <- scores()[,!(names(scores()) %in% vecQnames)]
+          scores <- scores()[,!(names(scores()) %in% varnames)]
           write.csv(scores, file, row.names = FALSE)
         }
       }
