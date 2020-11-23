@@ -9,6 +9,9 @@ library(tidyverse)
 library(ggplot2)
 library(shinybusy)
 library(shinyalert)
+library(writexl)
+library(readxl)
+library(scales)
 
   ui <- fluidPage(
     
@@ -39,20 +42,20 @@ library(shinyalert)
                       value = FALSE),
     
         #File upload box
-        fileInput("file1", "Choose CSV File",
-                  accept = ".csv"
+        fileInput("file1", "Choose .xslx File",
+                  accept = c(".xlsx", ".xls", ".csv")
         ),
 
         #Download button
-        conditionalPanel(
-          condition = "output.success",
-          downloadButton("scores", "Download processed data")
-        ),
-
-        conditionalPanel(
-          condition = "output.run",
-          downloadButton("log", "Download Log")
-        )
+        # conditionalPanel(
+        #   condition = "output.success",
+        #   downloadButton("scores", "Download processed data")
+        # ),
+        # 
+        # conditionalPanel(
+        #   condition = "output.run",
+        #   downloadButton("log", "Download Log")
+        # )
 
       ),
       #The main panel will simply display the processed output
@@ -64,7 +67,7 @@ library(shinyalert)
         conditionalPanel(
           condition = "!output.run",
           br(),
-          p(tags$body("Please upload a CSV using the sidebar. Ensure that your CSV has a unique ID variable, an AGE variable, and CREDI variables.")),
+          p(tags$body("Please upload an Excel spreadsheet using the sidebar. Ensure that your file (.xslx or .csv) has a unique ID variable, an AGE variable, and CREDI variables.")),
           p(tags$body("You can specify if your data is already reverse-coded or not, and if you want to include your item-level data after processing.")),
           p(tags$body("Please see the",
             tags$a(href="https://cdn1.sph.harvard.edu/wp-content/uploads/sites/2435/2016/05/CREDI-Scoring-Manual-8-Jun-2018.pdf",
@@ -74,19 +77,29 @@ library(shinyalert)
 
         conditionalPanel(
           condition = "output.success",
+          mainPanel("Success! Download scored data and log below.", style="color:green"),
+          br(),
+          br(),
+          downloadButton("scores", "Download processed data"),
+          downloadButton("log", "Download Log"),
+          br(),
+          br(),
+          tableOutput("scoretable"),
           plotOutput("avgscores"),
           plotOutput("zscores")
           ),
 
         conditionalPanel(
           condition = "output.failure",
-          mainPanel("Error processing data. Please see log for details")
+          mainPanel("Error processing data. Please see log for details", style="color:red"),
+          br(),
+          downloadButton("logfailure", "Download Log"),
+          br(),
+          tableOutput("logfailuredisp")
         )
-
       )
     )
   )
-
 
   server <- function(input, output, session) {
     
@@ -123,10 +136,24 @@ library(shinyalert)
           need(input$file1 != "", "")
         )
 
-        #Use the input file name to upload a raw CSV of the results
+        #Use the input file name to upload a raw xlsx/csv of the results
         inFile <- input$file1
-        preprocessed <- readr::read_csv(inFile$datapath)
+        
+        datapath <- inFile$datapath
+
+        ifelse(grepl(".csv", datapath),
+               preprocessed <- read_csv(datapath),
+               preprocessed <- readxl::read_excel(datapath)
+        )
+          
+        preprocessed <- preprocessed %>%
+          mutate_at(vars(intersect(varnames, names(preprocessed))), as.numeric)
+
     })
+        
+        datapath <- "something.csv" 
+        
+        
 
     ###Process the data and run the CREDI code, returning a list with the log and the scores (if successful)
     processed <- reactive({
@@ -157,55 +184,109 @@ library(shinyalert)
       !is.null(log()) & is.null(scores())
     })
     outputOptions(output, "failure", suspendWhenHidden = FALSE)
-
-    #Write the contents to a processing program to show when it's running
-    output$avgscores <- renderPlot({
+    
+    #Check if shortform or longform scores were generated
+    longform <- reactive({
+      "OVERALL" %in% names(scores())
+    })
+    
+    #Clean scores data a bit for plotting
+    cleanscores <- reactive({
       scores() %>%
-        mutate(age_band = ifelse(AGE < 6, "0-5",
+      rename_all(toupper) %>%
+      mutate(`Age Band` = ifelse(AGE < 6, "0-5",
                                  ifelse(AGE < 11, "6-11",
                                         ifelse(AGE < 17, "12-17",
                                                ifelse(AGE < 24, "18-24",
                                                       ifelse(AGE < 29, "25-29",
                                                              ifelse(AGE <= 36, "30-36", "Overage")))))),
-               age_band = ordered(age_band, levels = c("0-5", "6-11", "12-17","18-24","25-29", "30-36"))) %>%
-        pivot_longer(cols = c(OVERALL, SEM, MOT, LANG, COG, SF),
-                     values_to = "Score",
-                     names_to = "Domain") %>%
-        group_by(Domain, age_band) %>%
-        summarise(Score = mean(Score, na.rm=TRUE), .groups = "keep") %>%
-        ggplot(aes(x = Domain, y=Score, fill = age_band)) +
-        geom_bar(stat="identity", position="dodge") +
-        xlab("CREDI domain score averages")
+             `Age Band` = ordered(`Age Band`, levels = c("0-5", "6-11", "12-17","18-24","25-29", "30-36")))
+    })
+
+    #Create a table of the number of scores by age band
+    output$scoretable <- renderTable({
+      if( longform() ){
+        cleanscores() %>%
+          group_by(`Age Band`) %>%
+          summarize(`Num. scored obs` = n(),
+                    `Average Overall Score` = mean(OVERALL))
+      }
+      else {
+        cleanscores() %>%
+          group_by(`Age Band`) %>%
+          summarize(`Num. scored obs` = n(),
+                    `Average SF Score` = mean(SF))
+      }
+    })
+    
+    #Create a plot of average scores
+    output$avgscores <- renderPlot({
+      if( longform() ){
+        cleanscores() %>%
+          rename(Overall = OVERALL,
+                 `Soc. Emo.` = SEM,
+                 Motor = MOT,
+                 Language = LANG,
+                 Cognitive = COG,
+                 `Short Form` =  SF) %>%
+          pivot_longer(cols = c(Overall, `Soc. Emo.`, Motor, Language, Cognitive, `Short Form`),
+                       values_to = "Score",
+                       names_to = "Domain") %>%
+          group_by(Domain, `Age Band`) %>%
+          mutate(Domain = factor(Domain, levels = c("Overall", "Soc. Emo.", "Motor", "Language", "Cognitive", "Short Form"))) %>%
+          summarise(Score = mean(Score, na.rm=TRUE), .groups = "keep") %>%
+          ggplot(aes(x = Domain, y=Score, fill = `Age Band`)) +
+          geom_bar(stat="identity", position="dodge") + 
+          scale_y_continuous(limits=c(35,55),oob = rescale_none) +
+          xlab("CREDI domain score averages") +
+          labs(fill = "Age Band")
+      }
     })
 
     output$zscores <- renderPlot({
-      scores() %>%
-        pivot_longer(cols = c(z_SEM, z_MOT, z_LANG, z_COG),
+      if( longform() ){
+      cleanscores() %>%
+          rename(`Soc. Emo.` = Z_SEM,
+                 Motor = Z_MOT,
+                 Language = Z_LANG,
+                 Cognitive = Z_COG) %>%
+        pivot_longer(cols = c(`Soc. Emo.`, Motor, Language, Cognitive),
                      values_to = "Scores",
                      names_to = "Domain") %>%
         group_by(Domain) %>%
         ggplot(aes(x = Scores, group = Domain, fill = Domain)) +
-        geom_density(alpha = .5)
+        geom_density(alpha = .5) +
+        xlab("Distribution of normed CREDI domain Z-scores")
+      }
+      else {
+        cleanscores() %>%
+          ggplot(aes(x = SF, group = `Age Band`, fill = `Age Band`)) +
+          geom_density(alpha = .5) +
+          xlab("Distribution of CREDI SF scores by Age Band")
+        
+      }
     })    
     
-    #Write a downloadable csv of processed dataset
+    #Write a downloadable .xlsx of processed dataset
     output$scores <- downloadHandler(
-      filename = "Scored_CREDI_Data.csv",
+      filename = "Scored_CREDI_Data.xlsx",
       content = function(file) {
         #We print out all variables if item-level was selected
         if(input$itemlevel){
-          write.csv(scores(), file, row.names = FALSE)
+          write_xlsx(scores(), 
+                     file)
         }
         #Otherwise we remove the item-level data
         else {
           scores <- scores()[,!(names(scores()) %in% varnames)]
-          write.csv(scores, file, row.names = FALSE)
+          write_xlsx(scores(), 
+                     file)
         }
       }
     )
 
     #Write out the log in a nice .txt using code copied from CREDI package.
-    output$log <- downloadHandler(
+    output$logsuccess <- output$logfailure <- downloadHandler(
       filename = "log.txt",
       content = function(file) {
         sink(file, append = TRUE)
@@ -220,6 +301,14 @@ library(shinyalert)
       }
     )
 
+    
+#Make the log legible in the the output
+    output$logfailuredisp <- outputlogsuccessdisp <-renderTable(unlist(log()),
+                                    bordered = FALSE,
+                                    striped = FALSE,
+                                    rownames = FALSE,
+                                    colnames = FALSE)
+    
 # Delete the temporary directory when the session ends (I am not sure if this is necessary)
   # session$onSessionEnded(
   #   function(){ 
