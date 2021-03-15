@@ -1,8 +1,6 @@
-# setwd("C:/Users/Jonat/OneDrive - Harvard University/Documents/Git Hub/CREDI Scoring App")
-
-# devtools::install_github("jmseiden/jms_credi")
 # installr::uninstall.packages("jmscredi")
 # devtools::install("C:/Users/Jonat/OneDrive - Harvard University/Documents/Git Hub/jms_credi")
+# devtools::install_github("jmseiden/jms_credi")
 
 library(jmscredi)
 library(tidyverse)
@@ -42,7 +40,7 @@ library(scales)
                       value = FALSE),
     
         #File upload box
-        fileInput("file1", "Choose .xslx File",
+        fileInput("file1", "Choose .xslx or .csv File",
                   accept = c(".xlsx", ".xls", ".csv")
         ),
 
@@ -194,28 +192,32 @@ library(scales)
     cleanscores <- reactive({
       scores() %>%
       rename_all(toupper) %>%
-      mutate(`Age Band` = ifelse(AGE < 6, "0-5",
-                                 ifelse(AGE < 11, "6-11",
-                                        ifelse(AGE < 17, "12-17",
-                                               ifelse(AGE < 24, "18-24",
-                                                      ifelse(AGE < 29, "25-29",
-                                                             ifelse(AGE <= 36, "30-36", "Overage")))))),
-             `Age Band` = ordered(`Age Band`, levels = c("0-5", "6-11", "12-17","18-24","25-29", "30-36")))
-    })
+        mutate(`Age Band` = ifelse(AGE < 6, "0-5", ""),
+               `Age Band` = ifelse(AGE >= 6 & AGE < 12, "6-11", `Age Band`),
+               `Age Band` = ifelse(AGE >= 12 & AGE < 18, "12-17", `Age Band`),
+               `Age Band` = ifelse(AGE >= 18 & AGE < 25, "18-24", `Age Band`),
+               `Age Band` = ifelse(AGE >= 25 & AGE < 30, "25-29", `Age Band`),
+               `Age Band` = ifelse(AGE >= 30 & AGE <= 36, "30-36", `Age Band`),
+               `Age Band` = ifelse(AGE > 36, "Overage", `Age Band`),
+               `Age Band` = ifelse(is.na(AGE), "Missing age", `Age Band`),
+               `Age Band` = ordered(`Age Band`, levels = c("0-5", "6-11", "12-17","18-24","25-29", "30-36", "Overage", "Missing age")))
+      })
 
     #Create a table of the number of scores by age band
     output$scoretable <- renderTable({
       if( longform() ){
         cleanscores() %>%
           group_by(`Age Band`) %>%
-          summarize(`Num. scored obs` = n(),
-                    `Average Overall Score` = mean(OVERALL))
+          summarize(`Total obs` = n(),
+                    `% scored` = paste(round(sum(!is.na(OVERALL)) / n(),3)*100,"%", sep = ""),
+                    `Average Overall Score` = mean(OVERALL, na.rm = TRUE))
       }
       else {
         cleanscores() %>%
           group_by(`Age Band`) %>%
-          summarize(`Num. scored obs` = n(),
-                    `Average SF Score` = mean(SF))
+          summarize(`Total obs` = n(),
+                    `% scored` = paste(round(sum(!is.na(OVERALL)) / n(),3)*100,"%", sep = ""),
+                    `Average SF Score` = mean(SF, na.rm = TRUE))
       }
     })
     
@@ -233,13 +235,21 @@ library(scales)
                        values_to = "Score",
                        names_to = "Domain") %>%
           group_by(Domain, `Age Band`) %>%
-          mutate(Domain = factor(Domain, levels = c("Overall", "Soc. Emo.", "Motor", "Language", "Cognitive", "Short Form"))) %>%
+          mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall", "Short Form"))) %>%
           summarise(Score = mean(Score, na.rm=TRUE), .groups = "keep") %>%
           ggplot(aes(x = Domain, y=Score, fill = `Age Band`)) +
           geom_bar(stat="identity", position="dodge") + 
-          scale_y_continuous(limits=c(35,55),oob = rescale_none) +
+          scale_y_continuous(limits=c(35,55), oob = rescale_none) +
           xlab("CREDI domain score averages") +
           labs(fill = "Age Band")
+      }
+      else {
+        cleanscores() %>%
+        rename(`Short Form` = SF) %>%
+        group_by(`Age Band`) %>%
+        ggplot(aes(x = `Age Band`, y = `Short Form`, fill = `Age Band`)) +
+        geom_bar(stat = "identity") +
+        xlab("Average CREDI Short Form scores by Age Band") 
       }
     })
 
@@ -249,20 +259,23 @@ library(scales)
           rename(`Soc. Emo.` = Z_SEM,
                  Motor = Z_MOT,
                  Language = Z_LANG,
-                 Cognitive = Z_COG) %>%
-        pivot_longer(cols = c(`Soc. Emo.`, Motor, Language, Cognitive),
+                 Cognitive = Z_COG,
+                 Overall = Z_OVERALL,
+                 `Short Form` = Z_SF) %>%
+        pivot_longer(cols = c(`Soc. Emo.`, Motor, Language, Cognitive, Overall, `Short Form`),
                      values_to = "Scores",
                      names_to = "Domain") %>%
+        mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall", "Short Form"))) %>%
         group_by(Domain) %>%
         ggplot(aes(x = Scores, group = Domain, fill = Domain)) +
         geom_density(alpha = .5) +
-        xlab("Distribution of normed CREDI domain Z-scores")
+        xlab("Distribution of normed CREDI Z-scores")
       }
       else {
         cleanscores() %>%
-          ggplot(aes(x = SF, group = `Age Band`, fill = `Age Band`)) +
+          ggplot(aes(x = Z_SF)) +
           geom_density(alpha = .5) +
-          xlab("Distribution of CREDI SF scores by Age Band")
+          xlab("Distribution of normed CREDI Short Form Z-scores")
         
       }
     })    
