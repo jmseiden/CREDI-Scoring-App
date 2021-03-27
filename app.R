@@ -10,6 +10,7 @@ library(shinyalert)
 library(writexl)
 library(readxl)
 library(scales)
+library(DT)
 
   ui <- fluidPage(
     
@@ -83,6 +84,7 @@ library(scales)
           br(),
           br(),
           tableOutput("scoretable"),
+          tableOutput("flaggedobs"),
           plotOutput("avgscores"),
           plotOutput("zscores")
           ),
@@ -220,7 +222,16 @@ library(scales)
                     `Average SF Score` = mean(SF, na.rm = TRUE))
       }
     })
-    
+
+    output$flaggedobs <- renderTable({
+        cleanscores() %>%
+        filter(NOTES != "") %>%
+        mutate(NOTES = gsub(pattern = "T.*:", replacement = "", x = NOTES)) %>% 
+        mutate(NOTES = gsub(pattern = "\\.", replacement = "", x = NOTES)) %>% 
+        rename(`Domains with fewer than 5 observations:` = NOTES) %>% 
+        dplyr::select(ID, `Domains with fewer than 5 observations:`)
+    }, digits = 0)    
+        
     #Create a plot of average scores
     output$avgscores <- renderPlot({
       if( longform() ){
