@@ -18,7 +18,8 @@ library(DT)
 
     titlePanel(
         title=div(img(src="credi_logo.jpg", width = "300px"),
-                  "Scoring Application"),
+                  "Scoring Application (version 0.1)"),
+        
         windowTitle= "CREDI Scoring App"
       ),
 
@@ -218,7 +219,7 @@ library(DT)
         cleanscores() %>%
           group_by(`Age Band`) %>%
           summarize(`Total obs` = n(),
-                    `% scored` = paste(round(sum(!is.na(OVERALL)) / n(),3)*100,"%", sep = ""),
+                    `% scored` = paste(round(sum(!is.na(SF)) / n(),3)*100,"%", sep = ""),
                     `Average SF Score` = mean(SF, na.rm = TRUE))
       }
     })
