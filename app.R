@@ -1,7 +1,3 @@
-# installr::uninstall.packages("jmscredi")
-# devtools::install("C:/Users/Jonat/OneDrive - Harvard University/Documents/Git Hub/jms_credi")
-# devtools::install_github("jmseiden/jms_credi")
-
 library(jmscredi)
 library(tidyverse)
 library(ggplot2)
@@ -85,7 +81,10 @@ library(DT)
           br(),
           br(),
           tableOutput("scoretable"),
+          br(),
+          mainPanel("Flagged observations have a low number of responses in the particular domain and are calculated but may be innacurate.", style="color:red"),
           tableOutput("flaggedobs"),
+          br(),
           plotOutput("avgscores"),
           plotOutput("zscores")
           ),
@@ -225,13 +224,19 @@ library(DT)
     })
 
     output$flaggedobs <- renderTable({
-        cleanscores() %>%
-        filter(NOTES != "") %>%
-        mutate(NOTES = gsub(pattern = "T.*:", replacement = "", x = NOTES)) %>% 
-        mutate(NOTES = gsub(pattern = "\\.", replacement = "", x = NOTES)) %>% 
-        rename(`Domains with fewer than 5 observations:` = NOTES) %>% 
-        dplyr::select(ID, `Domains with fewer than 5 observations:`)
-    }, digits = 0)    
+      cleanscores() %>%
+        rename(Overall = OVERALL_FLAG,
+               `Soc. Emo.` = SEM_FLAG,
+               Motor = MOT_FLAG,
+               Language = LANG_FLAG,
+               Cognitive = COG_FLAG,
+               `Short Form` =  SF_FLAG) %>%
+        pivot_longer(cols = c(Overall, `Soc. Emo.`, Motor, Language, Cognitive, `Short Form`),
+                     values_to = "Flagged",
+                     names_to = "Domain") %>% 
+        group_by(Domain) %>% 
+      summarize(`Flagged observations` = paste(round(mean(Flagged),3)*100,"%", sep = ""))
+    }, digits = 2)    
         
     #Create a plot of average scores
     output$avgscores <- renderPlot({
