@@ -1,4 +1,4 @@
-library(jmscredi)
+library(credi)
 library(tidyverse)
 library(ggplot2)
 library(shinybusy)
@@ -30,7 +30,7 @@ library(DT)
         ),
         #Reverse scoring option
         checkboxInput(inputId = "reverse", 
-                      label = HTML(paste0("My data is ", "<b>","not","</b>", " reverse coded.", "<i>"," Selecting this option will have the program automatically reverse-code your data.","</i>")),
+                      label = HTML(paste0("My data are ", "<b>","not","</b>", " reverse coded.", "<i>"," Selecting this option will have the program automatically reverse-code your data.","</i>")),
                       value = TRUE),
         
         checkboxInput(inputId = "itemlevel", 
@@ -63,39 +63,61 @@ library(DT)
         conditionalPanel(
           condition = "!output.run",
           br(),
-          p(tags$body("Please upload an Excel spreadsheet using the sidebar. Ensure that your file (.xslx or .csv) has a unique ID variable, an AGE variable, and CREDI variables.")),
-          p(tags$body("You can specify if your data is already reverse-coded or not, and if you want to include your item-level data after processing.")),
+          p(tags$body("Please upload an Excel spreadsheet or CSV file using the sidebar. Ensure that your file (.xslx or .csv) has a unique ID variable, an AGE variable, and CREDI variables.")),
+          p(tags$body("You can specify if your data are already reverse-coded or not, and if you want to include your item-level data after processing.")),
           p(tags$body("Please see the",
-            tags$a(href="https://cdn1.sph.harvard.edu/wp-content/uploads/sites/2435/2016/05/CREDI-Scoring-Manual-8-Jun-2018.pdf",
-                   "CREDI scoring guide")),
+            tags$a(href="https://credi.gse.harvard.edu/files/credi/files/credi_scoring_manual_15-october-2021.pdf",
+                   "CREDI Scoring Manual")),
             tags$body("for more information."))
           ),
 
         conditionalPanel(
           condition = "output.success",
-          mainPanel("Success! Download scored data and log below.", style="color:green"),
-          br(),
-          br(),
-          downloadButton("scores", "Download processed data"),
-          downloadButton("log", "Download Log"),
-          br(),
-          br(),
-          tableOutput("scoretable"),
-          br(),
-          mainPanel("Flagged observations have a low number of responses in the particular domain and are calculated but may be innacurate.", style="color:red"),
-          tableOutput("flaggedobs"),
-          br(),
-          plotOutput("avgscores"),
-          plotOutput("zscores")
+          fluidRow(
+            column(width = 12,
+                   mainPanel("Success! Download scored data and log below.", style="color:green"))),
+          fluidRow(
+            column(width = 12,
+                   downloadButton("scores", "Download processed data"))),
+          fluidRow(
+            column(width = 12,
+                   downloadButton("logsuccess", "Download Log"))),
+          fluidRow(
+            column(width = 12,
+                   tableOutput("logsuccessdisp"))),
+          fluidRow(
+            column(width = 12,
+                   mainPanel("Below is a summary of scored responses by age band"))),  
+          fluidRow(
+            column(width = 12,
+                   tableOutput("scoretable"))),
+          fluidRow(
+            column(width = 12,
+                   mainPanel("Flagged observations have a low number of responses in the particular domain and are calculated but may be innacurate."))),
+          fluidRow(
+            column(width = 12,
+                   tableOutput("flaggedobs"))),
+          fluidRow(
+            column(width = 12,
+                   plotOutput("avgscores"))),    
+          fluidRow(
+            column(width = 12,
+                   plotOutput("zscores"))),
           ),
 
         conditionalPanel(
           condition = "output.failure",
-          mainPanel("Error processing data. Please see log for details", style="color:red"),
-          br(),
-          downloadButton("logfailure", "Download Log"),
-          br(),
-          tableOutput("logfailuredisp")
+          fluidRow(
+            column(width = 12,
+                   mainPanel("Error processing data. Please see log for details. If you are unable to resolve the errors by examining the below, please contact jseiden@g.harvard.edu for assistance. ", 
+                             style="color:red"))),
+          fluidRow(
+            column(width = 12,
+                   tableOutput("logfailuredisp"))),
+          fluidRow(
+            column(width = 12,
+                   downloadButton("logfailure", "Download Log"))),
+          
         )
       )
     )
@@ -153,11 +175,9 @@ library(DT)
         
         datapath <- "something.csv" 
         
-        
-
     ###Process the data and run the CREDI code, returning a list with the log and the scores (if successful)
     processed <- reactive({
-        dat <- jmscredi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse)
+        dat <- credi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse)
         list(scores = dat$scores, log = dat$log)
     })
 
@@ -185,9 +205,9 @@ library(DT)
     })
     outputOptions(output, "failure", suspendWhenHidden = FALSE)
     
-    #Check if shortform or longform scores were generated
+    #Check if shortform or longform data were input
     longform <- reactive({
-      "OVERALL" %in% names(scores())
+      "LANG" %in% names(scores())
     })
     
     #Clean scores data a bit for plotting
@@ -197,12 +217,12 @@ library(DT)
         mutate(`Age Band` = ifelse(AGE < 6, "0-5", ""),
                `Age Band` = ifelse(AGE >= 6 & AGE < 12, "6-11", `Age Band`),
                `Age Band` = ifelse(AGE >= 12 & AGE < 18, "12-17", `Age Band`),
-               `Age Band` = ifelse(AGE >= 18 & AGE < 25, "18-24", `Age Band`),
-               `Age Band` = ifelse(AGE >= 25 & AGE < 30, "25-29", `Age Band`),
-               `Age Band` = ifelse(AGE >= 30 & AGE <= 36, "30-36", `Age Band`),
+               `Age Band` = ifelse(AGE >= 18 & AGE < 24, "18-23", `Age Band`),
+               `Age Band` = ifelse(AGE >= 24 & AGE < 30, "24-29", `Age Band`),
+               `Age Band` = ifelse(AGE >= 30 & AGE <= 36, "30-35", `Age Band`),
                `Age Band` = ifelse(AGE > 36, "Overage", `Age Band`),
                `Age Band` = ifelse(is.na(AGE), "Missing age", `Age Band`),
-               `Age Band` = ordered(`Age Band`, levels = c("0-5", "6-11", "12-17","18-24","25-29", "30-36", "Overage", "Missing age")))
+               `Age Band` = ordered(`Age Band`, levels = c("0-5", "6-11", "12-17","18-23","24-29", "30-35", "Overage", "Missing age")))
       })
 
     #Create a table of the number of scores by age band
@@ -218,26 +238,34 @@ library(DT)
         cleanscores() %>%
           group_by(`Age Band`) %>%
           summarize(`Total obs` = n(),
-                    `% scored` = paste(round(sum(!is.na(SF)) / n(),3)*100,"%", sep = ""),
-                    `Average SF Score` = mean(SF, na.rm = TRUE))
+                    `% scored` = paste(round(sum(!is.na(OVERALL)) / n(),3)*100,"%", sep = ""),
+                    `Average Overall Score` = mean(OVERALL, na.rm = TRUE))
       }
     })
 
+
     output$flaggedobs <- renderTable({
-      cleanscores() %>%
-        rename(Overall = OVERALL_FLAG,
-               `Soc. Emo.` = SEM_FLAG,
-               Motor = MOT_FLAG,
-               Language = LANG_FLAG,
-               Cognitive = COG_FLAG,
-               `Short Form` =  SF_FLAG) %>%
-        pivot_longer(cols = c(Overall, `Soc. Emo.`, Motor, Language, Cognitive, `Short Form`),
-                     values_to = "Flagged",
-                     names_to = "Domain") %>% 
-        group_by(Domain) %>% 
-      summarize(`Flagged observations` = paste(round(mean(Flagged),3)*100,"%", sep = ""))
-    }, digits = 2)    
-        
+      if( longform() ){
+        cleanscores() %>%
+          rename(Overall = OVERALL_FLAG,
+                 `Soc. Emo.` = SEM_FLAG,
+                 Motor = MOT_FLAG,
+                 Language = LANG_FLAG,
+                 Cognitive = COG_FLAG) %>%
+          pivot_longer(cols = c(Overall, `Soc. Emo.`, Motor, Language, Cognitive),
+                       values_to = "Flagged",
+                       names_to = "Domain") %>% 
+          mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall"))) %>%
+          group_by(Domain) %>% 
+        summarize(`Flagged observations` = paste(round(mean(Flagged),3)*100,"%", sep = ""))
+      }
+      else{
+        cleanscores() %>%
+          mutate(Flagged = NOTES != "Only responses to short form items detected. Therefore, scoring will produce only a CREDI-SF score.") %>% 
+          summarize(`Flagged observations` = paste(round(mean(Flagged),3)*100,"%", sep = ""))
+      }
+      }, digits = 2)
+    
     #Create a plot of average scores
     output$avgscores <- renderPlot({
       if( longform() ){
@@ -246,27 +274,26 @@ library(DT)
                  `Soc. Emo.` = SEM,
                  Motor = MOT,
                  Language = LANG,
-                 Cognitive = COG,
-                 `Short Form` =  SF) %>%
-          pivot_longer(cols = c(Overall, `Soc. Emo.`, Motor, Language, Cognitive, `Short Form`),
+                 Cognitive = COG) %>%
+          pivot_longer(cols = c(Overall, `Soc. Emo.`, Motor, Language, Cognitive),
                        values_to = "Score",
                        names_to = "Domain") %>%
           group_by(Domain, `Age Band`) %>%
-          mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall", "Short Form"))) %>%
+          mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall"))) %>%
           summarise(Score = mean(Score, na.rm=TRUE), .groups = "keep") %>%
           ggplot(aes(x = Domain, y=Score, fill = `Age Band`)) +
           geom_bar(stat="identity", position="dodge") + 
           scale_y_continuous(limits=c(35,55), oob = rescale_none) +
-          xlab("CREDI domain score averages") +
+          xlab("CREDI Overall and domain score averages") +
           labs(fill = "Age Band")
       }
       else {
         cleanscores() %>%
-        rename(`Short Form` = SF) %>%
         group_by(`Age Band`) %>%
-        ggplot(aes(x = `Age Band`, y = `Short Form`, fill = `Age Band`)) +
+        summarize(Overall = mean(OVERALL)) %>%
+        ggplot(aes(x = `Age Band`, y = Overall, fill = `Age Band`)) +
         geom_bar(stat = "identity") +
-        xlab("Average CREDI Short Form scores by Age Band") 
+        xlab("Average CREDI Overall scores by Age Band") 
       }
     })
 
@@ -277,22 +304,21 @@ library(DT)
                  Motor = Z_MOT,
                  Language = Z_LANG,
                  Cognitive = Z_COG,
-                 Overall = Z_OVERALL,
-                 `Short Form` = Z_SF) %>%
-        pivot_longer(cols = c(`Soc. Emo.`, Motor, Language, Cognitive, Overall, `Short Form`),
+                 Overall = Z_OVERALL) %>%
+        pivot_longer(cols = c(`Soc. Emo.`, Motor, Language, Cognitive, Overall),
                      values_to = "Scores",
                      names_to = "Domain") %>%
-        mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall", "Short Form"))) %>%
+        mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall"))) %>%
         group_by(Domain) %>%
         ggplot(aes(x = Scores, group = Domain, fill = Domain)) +
         geom_density(alpha = .5) +
-        xlab("Distribution of normed CREDI Z-scores")
+        xlab("Distribution of normed CREDI Overall and domain Z-scores")
       }
       else {
         cleanscores() %>%
-          ggplot(aes(x = Z_SF)) +
+          ggplot(aes(x = Z_OVERALL)) +
           geom_density(alpha = .5) +
-          xlab("Distribution of normed CREDI Short Form Z-scores")
+          xlab("Distribution of normed CREDI Overall Z-scores")
         
       }
     })    
@@ -333,7 +359,7 @@ library(DT)
 
     
 #Make the log legible in the the output
-    output$logfailuredisp <- outputlogsuccessdisp <-renderTable(unlist(log()),
+    output$logfailuredisp <- output$logsuccessdisp <-renderTable(unlist(log()),
                                     bordered = FALSE,
                                     striped = FALSE,
                                     rownames = FALSE,
