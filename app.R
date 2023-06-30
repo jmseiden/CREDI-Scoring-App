@@ -10,8 +10,6 @@ library(DT)
 
   ui <- fluidPage(
     
-    useShinyalert(),
-
     titlePanel(
         title=div(img(src="credi_logo.jpg", width = "300px"),
                   "Scoring Application (version 0.1)"),
@@ -30,7 +28,7 @@ library(DT)
         ),
         #Reverse scoring option
         checkboxInput(inputId = "reverse", 
-                      label = HTML(paste0("My data are ", "<b>","not","</b>", " reverse coded.", "<i>"," Selecting this option will have the program automatically reverse-code your data.","</i>")),
+                      label = HTML(paste0("My data are ", "<b>","not ","</b>", "already reverse coded.", "<i>"," Selecting this option will change LF9 codes so that LF102 so that 1 = No and 0 = Yes.","</i>")),
                       value = TRUE),
         
         checkboxInput(inputId = "itemlevel", 
@@ -63,10 +61,15 @@ library(DT)
         conditionalPanel(
           condition = "!output.run",
           br(),
+          p(HTML("<ul style='color:red'><h2>WARNING!</ul></h2>",
+                 "<h3>WE HAVE RECENTLY UNCOVERED AN ISSUE WITH SHORT FORM CREDI SCORES</h3>",
+                 "<i>CREDI Short Form scores generated before June 29, 2023 did not use all available information. 
+                 We have fixed this bug, but also have noted that scores are underdispersed, meaning that the minimum and maximum Z-scores are higher and lower than they should be. 
+                 We are currently considering how to solve this issue but do not recommend using Z-scores for the Short Form at the moment.</i>")),
           p(tags$body("Please upload an Excel spreadsheet or CSV file using the sidebar. Ensure that your file (.xslx or .csv) has a unique ID variable, an AGE variable, and CREDI variables.")),
           p(tags$body("You can specify if your data are already reverse-coded or not, and if you want to include your item-level data after processing.")),
           p(tags$body("Please see the",
-            tags$a(href="https://credi.gse.harvard.edu/files/credi/files/credi_scoring_manual_15-october-2021.pdf",
+            tags$a(href="https://credi.gse.harvard.edu/files/credi/files/credi_scoring_manual_15_october_2021.pdf",
                    "CREDI Scoring Manual")),
             tags$body("for more information."))
           ),
