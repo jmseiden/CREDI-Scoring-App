@@ -222,10 +222,10 @@ library(DT)
                `Age Band` = ifelse(AGE >= 12 & AGE < 18, "12-17", `Age Band`),
                `Age Band` = ifelse(AGE >= 18 & AGE < 24, "18-23", `Age Band`),
                `Age Band` = ifelse(AGE >= 24 & AGE < 30, "24-29", `Age Band`),
-               `Age Band` = ifelse(AGE >= 30 & AGE <= 36, "30-35", `Age Band`),
+               `Age Band` = ifelse(AGE >= 30 & AGE <= 36, "30-36", `Age Band`),
                `Age Band` = ifelse(AGE > 36, "Overage", `Age Band`),
                `Age Band` = ifelse(is.na(AGE), "Missing age", `Age Band`),
-               `Age Band` = ordered(`Age Band`, levels = c("0-5", "6-11", "12-17","18-23","24-29", "30-35", "Overage", "Missing age")))
+               `Age Band` = ordered(`Age Band`, levels = c("0-5", "6-11", "12-17","18-23","24-29", "30-36", "Overage", "Missing age")))
       })
 
     #Create a table of the number of scores by age band
