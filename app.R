@@ -7,12 +7,13 @@ library(writexl)
 library(readxl)
 library(scales)
 library(DT)
+library(dscore)
 
   ui <- fluidPage(
     
     titlePanel(
         title=div(img(src="credi_logo.jpg", width = "300px"),
-                  "Scoring Application (version 0.1)"),
+                  "Scoring Application (version 0.2)"),
         
         windowTitle= "CREDI Scoring App"
       ),
@@ -33,8 +34,12 @@ library(DT)
         
         checkboxInput(inputId = "itemlevel", 
                       label = HTML(paste0("I want to preserve item-level data.", "<i>", " Select this option if you want to keep the data from each CREDI question. By default, the program will automatically discard item-level responses in the scored data.","</i>")),
+                      value = TRUE),
+        
+        checkboxInput(inputId = "dscore", 
+                      label = HTML(paste0("Generate GSED d-scores in addition to CREDI scores")),
                       value = FALSE),
-    
+        
         #File upload box
         fileInput("file1", "Choose .xslx or .csv File",
                   accept = c(".xlsx", ".xls", ".csv")
@@ -69,7 +74,7 @@ library(DT)
           p(tags$body("Please upload an Excel spreadsheet or CSV file using the sidebar. Ensure that your file (.xslx or .csv) has a unique ID variable, an AGE variable, and CREDI variables.")),
           p(tags$body("You can specify if your data are already reverse-coded or not, and if you want to include your item-level data after processing.")),
           p(tags$body("Please see the",
-            tags$a(href="https://credi.gse.harvard.edu/files/credi/files/credi_scoring_manual_15_october_2021.pdf",
+            tags$a(href="https://credi.gse.harvard.edu/sites/projects.iq.harvard.edu/files/credi/files/credi_data_scoring_manual_31oct2023_0.pdf",
                    "CREDI Scoring Manual")),
             tags$body("for more information."))
           ),
@@ -128,6 +133,9 @@ library(DT)
 
   server <- function(input, output, session) {
     
+    #Max upload size
+    options(shiny.maxRequestSize=50*1024^2)
+    
     #Create a dictionary for CREDI variable names
     load("environment.rda")
     
@@ -180,8 +188,8 @@ library(DT)
         
     ###Process the data and run the CREDI code, returning a list with the log and the scores (if successful)
     processed <- reactive({
-        dat <- credi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse)
-        list(scores = dat$scores, log = dat$log)
+        dat <- credi::score(data = preprocessed(), interactive = FALSE, reverse_code = input$reverse, dscore = input$dscore)
+        list(scores = dat$scores, log = dat$log, dscores = dat$dscores)
     })
 
     log <- reactive({
@@ -189,7 +197,15 @@ library(DT)
     })
 
     scores <- reactive({
-      processed()$scores
+      if(input$dscore) { #Attach d-score if the option is selected
+        dscore <- processed()$dscores %>% 
+          dplyr::select(dscore, DAZ, ID, dscore_sem)
+        
+        processed()$scores %>% 
+          left_join(dscore, by = "ID")
+      } else {
+        processed()$scores
+      }
     })
 
     #Check success of scoring
@@ -313,9 +329,11 @@ library(DT)
                      names_to = "Domain") %>%
         mutate(Domain = factor(Domain, levels = c("Soc. Emo.", "Motor", "Language", "Cognitive", "Overall"))) %>%
         group_by(Domain) %>%
-        ggplot(aes(x = Scores, group = Domain, fill = Domain)) +
-        geom_density(alpha = .5) +
-        xlab("Distribution of normed CREDI Overall and domain Z-scores")
+          mutate(average = mean(Scores)) %>% 
+          ggplot(aes(x = Scores, group = Domain, fill = Domain)) +
+            geom_density(alpha = .5) +
+            geom_vline(aes(xintercept = average, color = Domain), show.legend = FALSE) +
+            xlab("Distribution of normed CREDI Overall and domain Z-scores")
       }
       else {
         cleanscores() %>%

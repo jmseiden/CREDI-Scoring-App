@@ -5,10 +5,9 @@ account: credi
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2341827
-bundleId: 7617212
+bundleId: 7937927
 url: https://credi.shinyapps.io/Scoring_App/
-when: 1693235402.52602
-lastSyncTime: 1693235402.52603
+when: 1700193375.22991
+lastSyncTime: 1700193375.22992
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: mygrid.csv
