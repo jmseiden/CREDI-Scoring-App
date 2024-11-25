@@ -117,7 +117,7 @@ library(dscore)
           condition = "output.failure",
           fluidRow(
             column(width = 12,
-                   mainPanel("Error processing data. Please see log for details. If you are unable to resolve the errors by examining the below, please contact jseiden@g.harvard.edu for assistance. ", 
+                   mainPanel("Error processing data. Please see log for details. If you are unable to resolve the errors by examining the below, please contact mydo@g.harvard.edu or jseiden@g.harvard.edu for assistance.", 
                              style="color:red"))),
           fluidRow(
             column(width = 12,
